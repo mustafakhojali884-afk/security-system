@@ -14,7 +14,6 @@ export default function App() {
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  // Tweak 6: Separate logins without Role Selectors. Direct hash routing parsing!
   const [forcedRole, setForcedRole] = useState<'owner' | 'supervisor' | 'guard'>('owner');
 
   useEffect(() => {
@@ -81,6 +80,22 @@ export default function App() {
     const storedLogs = localStorage.getItem('qa_app_logs');
     return storedLogs ? JSON.parse(storedLogs) : initialLogs;
   });
+
+  // Tweak 2: "Real-time" polling cross-tab storage listener to update instantly without refreshing!
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'qa_app_users' && e.newValue) setUsers(JSON.parse(e.newValue));
+      if (e.key === 'qa_app_reports' && e.newValue) setReports(JSON.parse(e.newValue));
+      if (e.key === 'qa_app_tasks' && e.newValue) setTasks(JSON.parse(e.newValue));
+      if (e.key === 'qa_app_alerts' && e.newValue) setAlerts(JSON.parse(e.newValue));
+      if (e.key === 'qa_app_attendance' && e.newValue) setAttendance(JSON.parse(e.newValue));
+      if (e.key === 'qa_app_chat' && e.newValue) setChatMessages(JSON.parse(e.newValue));
+      if (e.key === 'qa_app_logs' && e.newValue) setLogs(JSON.parse(e.newValue));
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('qa_app_users', JSON.stringify(users));
@@ -166,7 +181,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans select-none" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      {/* Dynamic Link Route selector for preview testing */}
       {!currentUser && (
         <div className="w-full flex items-center justify-center gap-3 bg-slate-900/60 border-b border-slate-800 p-2.5">
           <a

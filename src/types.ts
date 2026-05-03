@@ -27,6 +27,7 @@ export interface User {
   ratingComment?: string;
   hiddenFromSupervisors?: boolean;
   permissions?: UserPermissions;
+  assignedBuildingId?: string; // Tweak 1: For location hard-locking
 }
 
 export interface Report {
@@ -64,7 +65,7 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  assignedTo: string; // 'all' or specific user ID
+  assignedTo: string; // Guard ID or 'all'
   dueDate: string;
   status: 'pending' | 'completed';
   createdAt: string;

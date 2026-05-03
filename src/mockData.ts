@@ -19,7 +19,8 @@ export const initialUsers: User[] = [
       chat: true,
       recordAttendance: true,
       viewReports: true
-    }
+    },
+    assignedBuildingId: '1'
   },
   {
     id: '2',
@@ -39,7 +40,8 @@ export const initialUsers: User[] = [
       chat: true,
       recordAttendance: true,
       viewReports: true
-    }
+    },
+    assignedBuildingId: '2'
   },
   {
     id: '3',
@@ -61,7 +63,8 @@ export const initialUsers: User[] = [
       chat: true,
       recordAttendance: true,
       viewReports: true
-    }
+    },
+    assignedBuildingId: '1' // Bound to GATE 1
   }
 ];
 

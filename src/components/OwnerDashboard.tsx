@@ -93,6 +93,7 @@ export default function OwnerDashboard({
   // Task creation state
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDesc, setTaskDesc] = useState('');
+  const [taskAssignedTo, setTaskAssignedTo] = useState('all');
   const [taskDue, setTaskDue] = useState('');
 
   // User management / Add state
@@ -102,6 +103,7 @@ export default function OwnerDashboard({
   const [addPhone, setAddPhone] = useState('');
   const [addPass, setAddPass] = useState('');
   const [addRole, setAddRole] = useState<'guard' | 'supervisor'>('guard');
+  const [addAssignedBuilding] = useState('1');
 
   // Emergency Mode Global State
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
@@ -269,7 +271,8 @@ export default function OwnerDashboard({
         chat: true,
         recordAttendance: true,
         viewReports: true
-      }
+      },
+      assignedBuildingId: addAssignedBuilding
     };
 
     onUpdateUsers([...users, nUser]);
@@ -278,6 +281,16 @@ export default function OwnerDashboard({
     setAddPhone('');
     setAddPass('');
     setIsAddUserOpen(false);
+  };
+
+  const handleUpdateAssignedBuilding = (userId: string, bId: string) => {
+    const updated = users.map((u) => {
+      if (u.id === userId) {
+        return { ...u, assignedBuildingId: bId };
+      }
+      return u;
+    });
+    onUpdateUsers(updated);
   };
 
   const handleToggleHideUser = (userId: string) => {
@@ -309,7 +322,7 @@ export default function OwnerDashboard({
       id: Date.now().toString(),
       title: taskTitle,
       description: taskDesc,
-      assignedTo: 'all',
+      assignedTo: taskAssignedTo,
       dueDate: taskDue,
       status: 'pending',
       createdAt: new Date().toISOString(),
@@ -319,6 +332,8 @@ export default function OwnerDashboard({
     setTaskTitle('');
     setTaskDesc('');
     setTaskDue('');
+
+    triggerAlarmSound();
   };
 
   const handleCheckInGuard = (guard: User) => {
@@ -365,6 +380,7 @@ export default function OwnerDashboard({
     onUpdateAlerts([newAlert, ...alerts]);
     setAlertNote('');
     setManualAlertType('');
+    triggerAlarmSound();
   };
 
   const handleDeleteAlert = (id: string) => {
@@ -399,6 +415,25 @@ export default function OwnerDashboard({
   const handleDeleteChatMessage = (id: string) => {
     if (confirm(t.confirm_delete)) {
       onUpdateChatMessages(chatMessages.filter((m) => m.id !== id));
+    }
+  };
+
+  const triggerAlarmSound = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.5);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 1.5);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -550,7 +585,7 @@ export default function OwnerDashboard({
                   <Plus className="h-5 w-5 text-amber-400" />
                   {editingReport ? t.edit : t.add_report}
                 </h3>
-                {/* Tweak 3: QR code Auto-entry */}
+                {/* QR code Auto-entry */}
                 <button
                   type="button"
                   onClick={handleQrScanMock}
@@ -612,7 +647,7 @@ export default function OwnerDashboard({
                   </div>
                 </div>
 
-                {/* Tweak 4: Added inline Image preview / selector */}
+                {/* Added inline Image preview / selector */}
                 <div className="md:col-span-4 flex flex-col md:flex-row items-center justify-between gap-4 mt-2 border-t border-slate-800/60 pt-3">
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2 cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-300 transition duration-200">
@@ -738,7 +773,7 @@ export default function OwnerDashboard({
         {/* ==================================== ALERTS TAB ==================================== */}
         {activeTab === 'alerts' && (
           <div className="space-y-6 animate-in fade-in-20 duration-300">
-            {/* Tweak 2: Manual extra other options Alert form + Target picker options */}
+            {/* Manual extra other options Alert form + Target picker options */}
             <div className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl backdrop-blur shadow-sm">
               <h3 className="text-base font-extrabold text-white mb-4 flex items-center gap-2">
                 <AlertOctagon className="h-5 w-5 text-amber-400" />
@@ -979,7 +1014,27 @@ export default function OwnerDashboard({
                         )}
                       </div>
 
-                      {/* Tweak 5: Granular Advanced Permissions Toggles */}
+                      {/* Assign Specific Building to Guard */}
+                      {u.role === 'guard' && (
+                        <div className="mt-3 bg-slate-950/40 border border-slate-800/60 p-3 rounded-xl">
+                          <label className="block text-xs font-bold text-amber-400 mb-2">
+                            {lang === 'ar' ? 'الموقع/المبنى المخصص للحارس' : 'Assigned Building Area'}
+                          </label>
+                          <select
+                            value={u.assignedBuildingId || '1'}
+                            onChange={(e) => handleUpdateAssignedBuilding(u.id, e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 text-white rounded-xl px-3 py-2 outline-none transition text-xs font-bold"
+                          >
+                            {buildingsList.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {lang === 'ar' ? b.ar : b.en}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Granular Advanced Permissions Toggles */}
                       {u.role !== 'owner' && (
                         <div className="mt-4 bg-slate-950/40 border border-slate-800/60 p-3.5 rounded-xl space-y-2 select-text">
                           <p className="text-xs font-bold text-amber-400 mb-2 border-b border-slate-800 pb-1">
@@ -1010,7 +1065,7 @@ export default function OwnerDashboard({
                                   <input
                                     type="checkbox"
                                     checked={perms[perm.key as keyof typeof perms]}
-                                    onChange={() => handleTogglePermission(u.id, perm.key as any)}
+                                    onChange={() => handleTogglePermission(u.id, perm.key)}
                                     className="accent-amber-500 rounded"
                                   />
                                   <span>{perm.label}</span>
@@ -1049,6 +1104,7 @@ export default function OwnerDashboard({
           </div>
         )}
 
+        {/* ==================================== ATTENDANCE TAB ==================================== */}
         {activeTab === 'attendance' && (
           <div className="space-y-6 animate-in fade-in-20 duration-300">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1152,6 +1208,24 @@ export default function OwnerDashboard({
                     onChange={(e) => setTaskDesc(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3.5 py-2 outline-none transition text-sm"
                   />
+                </div>
+                {/* Real dropdown containing guards */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-1.5">{t.assign_to}</label>
+                  <select
+                    value={taskAssignedTo}
+                    onChange={(e) => setTaskAssignedTo(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3.5 py-2 outline-none transition text-sm"
+                  >
+                    <option value="all">{t.all_users}</option>
+                    {users
+                      .filter((u) => u.role === 'guard')
+                      .map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))}
+                  </select>
                 </div>
                 <div>
                   <button

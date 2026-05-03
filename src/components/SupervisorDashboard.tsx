@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { User, Report, Task, AttendanceRecord, ChatMessage, Alert } from '../types';
+import { User, Report, Task, Alert, ChatMessage } from '../types';
 import { translations, buildingsList } from '../translations';
 import {
-  Clock,
   Plus,
   FileText,
   AlertOctagon,
@@ -10,13 +9,13 @@ import {
   Grid,
   MessageSquare,
   Settings,
+  ShieldAlert,
   MapPin,
   LogOut,
   QrCode,
   Image,
   X,
-  ShieldAlert,
-  CheckCircle
+  Clock
 } from 'lucide-react';
 import GuardsLogo from './GuardsLogo';
 
@@ -337,7 +336,7 @@ export default function SupervisorDashboard({
                   <Plus className="h-5 w-5 text-amber-400" />
                   {t.add_report}
                 </h3>
-                {/* Tweak 3: QR auto populator scan trigger */}
+                {/* QR auto populator scan trigger */}
                 <button
                   type="button"
                   onClick={handleQrScanMock}
@@ -349,8 +348,8 @@ export default function SupervisorDashboard({
               </div>
 
               {qrScannedSuccess && (
-                <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4" />
+                <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2 animate-bounce">
+                  <span>✔</span>
                   <span>
                     {lang === 'ar'
                       ? 'تم مسح QR وتعبئة البيانات بنجاح!'
@@ -393,7 +392,7 @@ export default function SupervisorDashboard({
                   </button>
                 </div>
 
-                {/* Tweak 4: File add / snap image preview */}
+                {/* File add / snap image preview */}
                 <div className="md:col-span-4 flex flex-col md:flex-row items-center justify-start gap-4 mt-2 border-t border-slate-800/60 pt-3">
                   <label className="flex items-center gap-2 cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-300 transition duration-200">
                     <Image className="h-4 w-4 text-amber-400" />
@@ -461,7 +460,7 @@ export default function SupervisorDashboard({
 
         {activeTab === 'alerts' && (
           <div className="space-y-6 animate-in fade-in-20 duration-300">
-            {/* Tweak 2: Manual extra other options Alert form + Target picker options */}
+            {/* Manual extra other options Alert form + Target picker options */}
             <div className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl backdrop-blur shadow-sm">
               <h3 className="text-base font-extrabold text-white mb-4 flex items-center gap-2">
                 <AlertOctagon className="h-5 w-5 text-amber-400" />

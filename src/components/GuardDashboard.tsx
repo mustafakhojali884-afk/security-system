@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Report, Task, AttendanceRecord, ChatMessage, Alert } from '../types';
 import { translations, buildingsList } from '../translations';
 import {
@@ -15,9 +15,10 @@ import {
   Image,
   X,
   UserCheck,
-  CheckCircle
+  Bell
 } from 'lucide-react';
 import GuardsLogo from './GuardsLogo';
+import QrScannerModal from './QrScannerModal';
 
 interface GuardDashboardProps {
   currentUser: User;
@@ -67,6 +68,10 @@ export default function GuardDashboard({
   const [newReportImage, setNewReportImage] = useState<string>('');
   const [qrScannedSuccess, setQrScannedSuccess] = useState(false);
 
+  // QR Scan Modal State
+  const [isQrScanOpen, setIsQrScanOpen] = useState(false);
+  const [qrMode, setQrMode] = useState<'report' | 'check_in' | 'check_out'>('report');
+
   // Custom alert target creation states for guard
   const [alertType, setAlertType] = useState('fire');
   const [manualAlertType, setManualAlertType] = useState('');
@@ -74,6 +79,10 @@ export default function GuardDashboard({
   const [alertNote, setAlertNote] = useState('');
 
   const [chatInput, setChatInput] = useState('');
+
+  // Tweak 2: "Real-time" polling states for alert sounds
+  const [lastTaskCount, setLastTaskCount] = useState(0);
+  const [showNotification, setShowNotification] = useState<string | null>(null);
 
   const activeThemeClass = {
     yellow: 'from-amber-500/20 via-orange-500/5 text-amber-400 bg-amber-500 border-amber-500/30',
@@ -97,12 +106,103 @@ export default function GuardDashboard({
   const myTasks = tasks.filter((t) => t.assignedTo === currentUser.id || t.assignedTo === 'all');
   const myAttendanceRecords = attendance.filter((rec) => rec.guardId === currentUser.id);
 
-  const handleQrScanMock = () => {
-    // Tweak 3: Autopopulate mock after QR Scan in reports
-    const randomB = buildingsList[Math.floor(Math.random() * buildingsList.length)];
-    setNewReportBuilding(randomB.id);
-    setQrScannedSuccess(true);
-    setTimeout(() => setQrScannedSuccess(false), 2000);
+  const triggerAlarmSound = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.5);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 1.5);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    setLastTaskCount(myTasks.length);
+  }, []);
+
+  useEffect(() => {
+    if (myTasks.length > lastTaskCount) {
+      const addedTask = myTasks[myTasks.length - 1];
+      setShowNotification(addedTask.title);
+      triggerAlarmSound();
+      setLastTaskCount(myTasks.length);
+      setTimeout(() => setShowNotification(null), 6000);
+    }
+  }, [myTasks.length, lastTaskCount]);
+
+  const openQrScanner = (mode: 'report' | 'check_in' | 'check_out') => {
+    setQrMode(mode);
+    setIsQrScanOpen(true);
+  };
+
+  const handleQrScanned = (scannedData: string) => {
+    setIsQrScanOpen(false);
+
+    if (qrMode === 'report') {
+      const matchB = buildingsList.find((b) =>
+        b.en.toLowerCase().includes(scannedData.toLowerCase()) ||
+        b.ar.includes(scannedData)
+      ) || buildingsList[0];
+
+      setNewReportBuilding(matchB.id);
+      setQrScannedSuccess(true);
+      setTimeout(() => setQrScannedSuccess(false), 2000);
+    } else if (qrMode === 'check_in') {
+      // Tweak 3: QR Locking Location enforcement exactly
+      const assignedBuilding = buildingsList.find((b) => b.id === (currentUser.assignedBuildingId || '1'));
+      const matchesName = assignedBuilding && (
+        scannedData.toLowerCase().includes(assignedBuilding.en.toLowerCase()) ||
+        scannedData.includes(assignedBuilding.ar)
+      );
+      const matchesId = scannedData === (currentUser.assignedBuildingId || '1');
+
+      if (!matchesName && !matchesId) {
+        alert(lang === 'ar' ? 'عذراً، لا يمكنك تسجيل الحضور في غير موقعك المخصص' : 'Sorry, you cannot check in at a location that is not your assigned building.');
+        return;
+      }
+
+      const checkInRecord: AttendanceRecord = {
+        id: Date.now().toString(),
+        guardId: currentUser.id,
+        guardName: currentUser.name,
+        shift: currentUser.shift || 'morning',
+        checkIn: new Date().toLocaleTimeString('ar-EG'),
+        status: 'present',
+        date: new Date().toISOString().split('T')[0],
+      };
+      onUpdateAttendance([checkInRecord, ...attendance]);
+      alert(lang === 'ar' ? 'تم تسجيل حضورك بنجاح!' : 'Checked in successfully!');
+    } else if (qrMode === 'check_out') {
+      const assignedBuilding = buildingsList.find((b) => b.id === (currentUser.assignedBuildingId || '1'));
+      const matchesName = assignedBuilding && (
+        scannedData.toLowerCase().includes(assignedBuilding.en.toLowerCase()) ||
+        scannedData.includes(assignedBuilding.ar)
+      );
+      const matchesId = scannedData === (currentUser.assignedBuildingId || '1');
+
+      if (!matchesName && !matchesId) {
+        alert(lang === 'ar' ? 'عذراً، لا يمكنك تسجيل الانصراف في غير موقعك المخصص' : 'Sorry, you cannot check out at a location that is not your assigned building.');
+        return;
+      }
+
+      const updated = attendance.map((rec) => {
+        if (rec.guardId === currentUser.id && !rec.checkOut) {
+          return { ...rec, checkOut: new Date().toLocaleTimeString('ar-EG') };
+        }
+        return rec;
+      });
+      onUpdateAttendance(updated);
+      alert(lang === 'ar' ? 'تم تسجيل انصرافك بنجاح!' : 'Checked out successfully!');
+    }
   };
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,37 +243,11 @@ export default function GuardDashboard({
     setNewReportImage('');
   };
 
-  const handleToggleCheckIn = () => {
-    const hasCheckedIn = myAttendanceRecords.some((rec) => !rec.checkOut);
-
-    if (!hasCheckedIn) {
-      const checkInRecord: AttendanceRecord = {
-        id: Date.now().toString(),
-        guardId: currentUser.id,
-        guardName: currentUser.name,
-        shift: currentUser.shift || 'morning',
-        checkIn: new Date().toLocaleTimeString('ar-EG'),
-        status: 'present',
-        date: new Date().toISOString().split('T')[0],
-      };
-      onUpdateAttendance([checkInRecord, ...attendance]);
-    } else {
-      const updated = attendance.map((rec) => {
-        if (rec.guardId === currentUser.id && !rec.checkOut) {
-          return { ...rec, checkOut: new Date().toLocaleTimeString('ar-EG') };
-        }
-        return rec;
-      });
-      onUpdateAttendance(updated);
-    }
-  };
-
   const handleCreateAlert = (e: React.FormEvent) => {
     e.preventDefault();
     const typeLabel = alertType === 'other' ? manualAlertType : alertType;
     if (!typeLabel) return;
 
-    // Tweak 2: Limit the alerting scope of the guard to 'all' or 'admins'
     const newAlert: Alert = {
       id: Date.now().toString(),
       type: typeLabel,
@@ -222,6 +296,40 @@ export default function GuardDashboard({
 
   return (
     <div className="min-h-screen bg-slate-950 font-sans transition-all duration-300 antialiased overflow-hidden" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+      {showNotification && (
+        <div className="fixed top-4 left-4 right-4 md:left-auto md:right-4 z-50 bg-amber-500 text-slate-950 px-4 py-3.5 rounded-xl flex items-center justify-between border border-amber-400/30 gap-4 shadow-2xl animate-bounce">
+          <div className="flex items-center gap-3">
+            <Bell className="h-5 w-5 animate-pulse shrink-0" />
+            <div className="text-sm font-black">
+              <p className="leading-tight">
+                {lang === 'ar' ? 'مهمة جديدة مسندة إليك!' : 'New task assigned to you!'}
+              </p>
+              <span className="text-xs font-bold opacity-80">{showNotification}</span>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowNotification(null)}
+            className="p-1 hover:bg-amber-400 rounded-lg transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {isQrScanOpen && (
+        <QrScannerModal
+          title={
+            qrMode === 'report'
+              ? (lang === 'ar' ? 'مسح كود QR للمبنى' : 'Scan Building QR')
+              : qrMode === 'check_in'
+              ? (lang === 'ar' ? 'مسح كود QR للحضور' : 'Scan Check In QR')
+              : (lang === 'ar' ? 'مسح كود QR للانصراف' : 'Scan Check Out QR')
+          }
+          onScan={handleQrScanned}
+          onClose={() => setIsQrScanOpen(false)}
+        />
+      )}
+
       <header className="border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md sticky top-0 z-40 select-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap justify-between items-center gap-4">
           <GuardsLogo className="h-10 w-10" lang={lang} />
@@ -287,13 +395,14 @@ export default function GuardDashboard({
                 : 'Manage shift check-in, check your upcoming security tasks, and report on building areas directly.'}
             </p>
           </div>
+          {/* Forced QR scan for Attendance Check-In / Check Out */}
           <button
-            onClick={handleToggleCheckIn}
+            onClick={() => openQrScanner(isCheckedIn ? 'check_out' : 'check_in')}
             className={`w-full md:w-auto font-black flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl transition shadow-lg cursor-pointer text-sm ${
               isCheckedIn ? 'bg-red-600 hover:bg-red-500 text-white' : `${themeAccent}`
             }`}
           >
-            <Clock className="h-5 w-5" />
+            <QrCode className="h-5 w-5" />
             {isCheckedIn ? t.check_out : t.check_in}
           </button>
         </div>
@@ -307,10 +416,10 @@ export default function GuardDashboard({
                     <Plus className="h-5 w-5 text-amber-400" />
                     {t.add_report}
                   </h3>
-                  {/* Tweak 3: QR auto populator scan trigger */}
+                  {/* Real scan modal opens! */}
                   <button
                     type="button"
-                    onClick={handleQrScanMock}
+                    onClick={() => openQrScanner('report')}
                     className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3.5 py-2.5 rounded-xl cursor-pointer text-xs transition duration-200 shadow-md animate-pulse"
                   >
                     <QrCode className="h-4 w-4" />
@@ -319,8 +428,8 @@ export default function GuardDashboard({
                 </div>
 
                 {qrScannedSuccess && (
-                  <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4" />
+                  <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2 animate-bounce">
+                    <span className="text-emerald-400">✔</span>
                     <span>
                       {lang === 'ar'
                         ? 'تم مسح QR وتعبئة البيانات بنجاح!'
@@ -354,7 +463,7 @@ export default function GuardDashboard({
                       onChange={(e) => setNewReportNote(e.target.value)}
                       placeholder="Write descriptive findings here..."
                       className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 text-white rounded-xl px-3.5 py-2 outline-none transition text-sm"
-                    ></textarea>
+></textarea>
                   </div>
 
                   <div>
@@ -370,7 +479,7 @@ export default function GuardDashboard({
                     </select>
                   </div>
 
-                  {/* Tweak 4: File add / snap image preview */}
+                  {/* File add / snap image preview */}
                   <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-2 border-t border-slate-800/60 pt-3">
                     <label className="flex items-center gap-2 cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-300 transition duration-200">
                       <Image className="h-4 w-4 text-amber-400" />
@@ -449,7 +558,6 @@ export default function GuardDashboard({
           </div>
         )}
 
-        {/* ==================================== OTHER TABS ==================================== */}
         {activeTab === 'buildings' && (
           <div className="space-y-6 animate-in fade-in-20 duration-300">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -556,7 +664,7 @@ export default function GuardDashboard({
 
         {activeTab === 'alerts' && (
           <div className="space-y-6 animate-in fade-in-20 duration-300">
-            {/* Tweak 2: Manual extra other options Alert form + Limited target scopes */}
+            {/* Manual extra other options Alert form + Limited target scopes */}
             <div className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl backdrop-blur shadow-sm max-w-lg mx-auto">
               <h3 className="text-base font-extrabold text-white mb-4 flex items-center gap-2">
                 <AlertOctagon className="h-5 w-5 text-amber-400" />
