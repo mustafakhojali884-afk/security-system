@@ -81,9 +81,27 @@ export default function App() {
     return storedLogs ? JSON.parse(storedLogs) : initialLogs;
   });
 
-  // Tweak 2: "Real-time" polling cross-tab storage listener to update instantly without refreshing!
+  // Cross-tab storage change listener
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
+      if (!e.key) {
+        // Full refresh
+        const u = localStorage.getItem('qa_app_users');
+        if (u) setUsers(JSON.parse(u));
+        const r = localStorage.getItem('qa_app_reports');
+        if (r) setReports(JSON.parse(r));
+        const t = localStorage.getItem('qa_app_tasks');
+        if (t) setTasks(JSON.parse(t));
+        const a = localStorage.getItem('qa_app_alerts');
+        if (a) setAlerts(JSON.parse(a));
+        const att = localStorage.getItem('qa_app_attendance');
+        if (att) setAttendance(JSON.parse(att));
+        const c = localStorage.getItem('qa_app_chat');
+        if (c) setChatMessages(JSON.parse(c));
+        const l = localStorage.getItem('qa_app_logs');
+        if (l) setLogs(JSON.parse(l));
+        return;
+      }
       if (e.key === 'qa_app_users' && e.newValue) setUsers(JSON.parse(e.newValue));
       if (e.key === 'qa_app_reports' && e.newValue) setReports(JSON.parse(e.newValue));
       if (e.key === 'qa_app_tasks' && e.newValue) setTasks(JSON.parse(e.newValue));
@@ -97,33 +115,41 @@ export default function App() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('qa_app_users', JSON.stringify(users));
-  }, [users]);
+  const handleUpdateUsers = (updated: User[]) => {
+    setUsers(updated);
+    localStorage.setItem('qa_app_users', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
 
-  useEffect(() => {
-    localStorage.setItem('qa_app_reports', JSON.stringify(reports));
-  }, [reports]);
+  const handleUpdateReports = (updated: Report[]) => {
+    setReports(updated);
+    localStorage.setItem('qa_app_reports', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
 
-  useEffect(() => {
-    localStorage.setItem('qa_app_tasks', JSON.stringify(tasks));
-  }, [tasks]);
+  const handleUpdateTasks = (updated: Task[]) => {
+    setTasks(updated);
+    localStorage.setItem('qa_app_tasks', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
 
-  useEffect(() => {
-    localStorage.setItem('qa_app_attendance', JSON.stringify(attendance));
-  }, [attendance]);
+  const handleUpdateAlerts = (updated: Alert[]) => {
+    setAlerts(updated);
+    localStorage.setItem('qa_app_alerts', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
 
-  useEffect(() => {
-    localStorage.setItem('qa_app_alerts', JSON.stringify(alerts));
-  }, [alerts]);
+  const handleUpdateAttendance = (updated: AttendanceRecord[]) => {
+    setAttendance(updated);
+    localStorage.setItem('qa_app_attendance', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
 
-  useEffect(() => {
-    localStorage.setItem('qa_app_chat', JSON.stringify(chatMessages));
-  }, [chatMessages]);
-
-  useEffect(() => {
-    localStorage.setItem('qa_app_logs', JSON.stringify(logs));
-  }, [logs]);
+  const handleUpdateChatMessages = (updated: ChatMessage[]) => {
+    setChatMessages(updated);
+    localStorage.setItem('qa_app_chat', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
 
   useEffect(() => {
     localStorage.setItem('qa_app_lang', lang);
@@ -146,7 +172,10 @@ export default function App() {
       action: `تم تسجيل دخول المستخدم (${user.name}) بنجاح.`,
       timestamp: new Date().toISOString(),
     };
-    setLogs([newLog, ...logs]);
+    const nLogs = [newLog, ...logs];
+    setLogs(nLogs);
+    localStorage.setItem('qa_app_logs', JSON.stringify(nLogs));
+    window.dispatchEvent(new Event('storage'));
   };
 
   const handleLogout = () => {
@@ -158,13 +187,21 @@ export default function App() {
         action: `قام المستخدم (${currentUser.name}) بتسجيل الخروج.`,
         timestamp: new Date().toISOString(),
       };
-      setLogs([newLog, ...logs]);
+      const nLogs = [newLog, ...logs];
+      setLogs(nLogs);
+      localStorage.setItem('qa_app_logs', JSON.stringify(nLogs));
+      window.dispatchEvent(new Event('storage'));
     }
     setCurrentUser(null);
   };
 
   const handleRegister = (newUser: User) => {
-    setUsers((prev) => [...prev, newUser]);
+    setUsers((prev) => {
+      const uList = [...prev, newUser];
+      localStorage.setItem('qa_app_users', JSON.stringify(uList));
+      window.dispatchEvent(new Event('storage'));
+      return uList;
+    });
     const newLog: LogEntry = {
       id: Date.now().toString(),
       userId: newUser.id,
@@ -172,7 +209,12 @@ export default function App() {
       action: `تم تسجيل حساب مستخدم جديد: ${newUser.name} (${newUser.role})`,
       timestamp: new Date().toISOString(),
     };
-    setLogs([newLog, ...logs]);
+    setLogs((prev) => {
+      const lList = [newLog, ...prev];
+      localStorage.setItem('qa_app_logs', JSON.stringify(lList));
+      window.dispatchEvent(new Event('storage'));
+      return lList;
+    });
   };
 
   const handleToggleLang = () => {
@@ -236,12 +278,12 @@ export default function App() {
           logs={logs}
           lang={lang}
           onLogout={handleLogout}
-          onUpdateUsers={setUsers}
-          onUpdateReports={setReports}
-          onUpdateTasks={setTasks}
-          onUpdateAlerts={setAlerts}
-          onUpdateAttendance={setAttendance}
-          onUpdateChatMessages={setChatMessages}
+          onUpdateUsers={handleUpdateUsers}
+          onUpdateReports={handleUpdateReports}
+          onUpdateTasks={handleUpdateTasks}
+          onUpdateAlerts={handleUpdateAlerts}
+          onUpdateAttendance={handleUpdateAttendance}
+          onUpdateChatMessages={handleUpdateChatMessages}
           onToggleLang={handleToggleLang}
         />
       ) : currentUser.role === 'supervisor' ? (
@@ -254,10 +296,10 @@ export default function App() {
           chatMessages={chatMessages}
           lang={lang}
           onLogout={handleLogout}
-          onUpdateReports={setReports}
-          onUpdateTasks={setTasks}
-          onUpdateAlerts={setAlerts}
-          onUpdateChatMessages={setChatMessages}
+          onUpdateReports={handleUpdateReports}
+          onUpdateTasks={handleUpdateTasks}
+          onUpdateAlerts={handleUpdateAlerts}
+          onUpdateChatMessages={handleUpdateChatMessages}
           onToggleLang={handleToggleLang}
         />
       ) : (
@@ -271,11 +313,11 @@ export default function App() {
           chatMessages={chatMessages}
           lang={lang}
           onLogout={handleLogout}
-          onUpdateReports={setReports}
-          onUpdateTasks={setTasks}
-          onUpdateAlerts={setAlerts}
-          onUpdateAttendance={setAttendance}
-          onUpdateChatMessages={setChatMessages}
+          onUpdateReports={handleUpdateReports}
+          onUpdateTasks={handleUpdateTasks}
+          onUpdateAlerts={handleUpdateAlerts}
+          onUpdateAttendance={handleUpdateAttendance}
+          onUpdateChatMessages={handleUpdateChatMessages}
           onToggleLang={handleToggleLang}
         />
       )}

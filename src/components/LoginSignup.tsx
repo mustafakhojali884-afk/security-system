@@ -111,6 +111,7 @@ export default function LoginSignup({ onLogin, users, onRegister, lang, forcedRo
       return;
     }
 
+    // Ensure guards complete standard info
     if (forcedRole === 'guard' && (!phone || !securityId)) {
       setError(lang === 'ar' ? 'يرجى إدخال الهاتف ورقم السكيورتي للحراس' : 'Phone and Security ID are required for guards');
       return;
@@ -121,14 +122,15 @@ export default function LoginSignup({ onLogin, users, onRegister, lang, forcedRo
       return;
     }
 
+    // Assign exactly Guard to any new user registration
     const newUser: User = {
       id: Date.now().toString(),
       name,
       email,
       phone,
-      securityId: forcedRole === 'guard' ? securityId : undefined,
-      shift: forcedRole === 'guard' ? shift : undefined,
-      role: forcedRole,
+      securityId: securityId || 'SEC-NEW',
+      shift: shift || 'morning',
+      role: 'guard',
       password,
       deviceFingerprint,
       deviceInfo,
@@ -145,7 +147,7 @@ export default function LoginSignup({ onLogin, users, onRegister, lang, forcedRo
     };
 
     onRegister(newUser);
-    setSuccess(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.' : 'Account successfully created! Please log in.');
+    setSuccess(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول كحارس.' : 'Account successfully created! Please log in as guard.');
     setTimeout(() => {
       setIsLogin(true);
     }, 1200);
@@ -288,47 +290,44 @@ export default function LoginSignup({ onLogin, users, onRegister, lang, forcedRo
                   />
                 </div>
 
-                {forcedRole === 'guard' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-300 mb-1">{t.phone}</label>
-                      <input
-                        type="tel"
-                        required
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+249..."
-                        className="w-full bg-slate-950/80 border border-slate-800 focus:border-amber-500/60 focus:ring-amber-500/20 text-white rounded-xl px-4 py-2.5 outline-none transition text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-300 mb-1">{t.security_id}</label>
-                      <input
-                        type="text"
-                        required
-                        value={securityId}
-                        onChange={(e) => setSecurityId(e.target.value)}
-                        placeholder="SEC-XXX"
-                        className="w-full bg-slate-950/80 border border-slate-800 focus:border-amber-500/60 focus:ring-amber-500/20 text-white rounded-xl px-4 py-2.5 outline-none transition text-sm"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {forcedRole === 'guard' && (
+                {/* Always request standard fields since default is always Guard */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-300 mb-1">{t.shift_type}</label>
-                    <select
-                      value={shift}
-                      onChange={(e) => setShift(e.target.value as ShiftType)}
+                    <label className="block text-sm font-semibold text-slate-300 mb-1">{t.phone}</label>
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+249..."
                       className="w-full bg-slate-950/80 border border-slate-800 focus:border-amber-500/60 focus:ring-amber-500/20 text-white rounded-xl px-4 py-2.5 outline-none transition text-sm"
-                    >
-                      <option value="morning">{t.morning}</option>
-                      <option value="night">{t.night}</option>
-                      <option value="day">{t.day}</option>
-                    </select>
+                    />
                   </div>
-                )}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-300 mb-1">{t.security_id}</label>
+                    <input
+                      type="text"
+                      required
+                      value={securityId}
+                      onChange={(e) => setSecurityId(e.target.value)}
+                      placeholder="SEC-XXX"
+                      className="w-full bg-slate-950/80 border border-slate-800 focus:border-amber-500/60 focus:ring-amber-500/20 text-white rounded-xl px-4 py-2.5 outline-none transition text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-1">{t.shift_type}</label>
+                  <select
+                    value={shift}
+                    onChange={(e) => setShift(e.target.value as ShiftType)}
+                    className="w-full bg-slate-950/80 border border-slate-800 focus:border-amber-500/60 focus:ring-amber-500/20 text-white rounded-xl px-4 py-2.5 outline-none transition text-sm"
+                  >
+                    <option value="morning">{t.morning}</option>
+                    <option value="night">{t.night}</option>
+                    <option value="day">{t.day}</option>
+                  </select>
+                </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-300 mb-1">{t.password}</label>
